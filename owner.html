@@ -145,477 +145,327 @@
         </div>
     </div>
 
-    <!-- JavaScript Module -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, collection, query, onSnapshot, serverTimestamp, setLogLevel, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+<!-- JavaScript Module -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { 
+    getAuth, onAuthStateChanged, signOut 
+  } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { 
+    getFirestore, doc, getDoc, setDoc, collection, query, onSnapshot, serverTimestamp, setLogLevel, updateDoc 
+  } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- GLOBAL CONFIGURATION AND SETUP ---
-        const API_KEY = ""; // Leave as-is for the environment to inject
-        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
-        
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = {
-  apiKey: "AIzaSyCliX4lQa7YWp0unYFp6-rZnGIgwC6MIQk",
-  authDomain: "smart-hsr-owner.firebaseapp.com",
-  projectId: "smart-hsr-owner",
-  storageBucket: "smart-hsr-owner.appspot.com",
-  messagingSenderId: "234872814790",
-  appId: "1:234872814790:web:66e1be939d0c300e3a6bc7"
-};
+  // -------- GLOBAL CONFIG --------
+  const API_KEY = ""; // (اختياري) لـ Gemini، اتركه فارغ أو ضع مفتاحك
+  const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
 
-        let SIMULATED_OWNER_UID = null;
-        const orgsCollectionPath = `artifacts/${appId}/public/data/orgs`;
+  const firebaseConfig = {
+    apiKey: "AIzaSyCliX4lQa7YWp0unYFp6-rZnGIgwC6MIQk",
+    authDomain: "smart-hsr-owner.firebaseapp.com",
+    projectId: "smart-hsr-owner",
+    storageBucket: "smart-hsr-owner.appspot.com", // ✅ تم التصحيح
+    messagingSenderId: "234872814790",
+    appId: "1:234872814790:web:66e1be939d0c300e3a6bc7"
+  };
 
-        let app;
-        let db;
-        let auth;
-        let organizationsData = [];
-        let searchTerm = '';
+  // مسار المؤسسات الموحّد
+  const orgsCollectionPath = "companies";
 
-        // DOM Elements
-        const modal = document.getElementById('newOrgModal');
-        const openBtn = document.getElementById('btnNewOrg');
-        const closeBtn = document.getElementById('closeModal');
-        const form = document.getElementById('newOrgForm');
-        const orgBody = document.getElementById('orgBody');
-        const searchInput = document.getElementById('searchOrg');
-        const logoutBtn = document.getElementById('logoutBtn');
-        const logsDiv = document.getElementById('logs');
-        const loadingIndicator = document.getElementById('loadingIndicator');
-        const btnDraftEmail = document.getElementById('btnDraftEmail');
-        const draftedEmail = document.getElementById('draftedEmail');
-        const orgNameInput = document.getElementById('orgName');
-        const orgPlanInput = document.getElementById('orgPlan');
-        const managerEmailInput = document.getElementById('managerEmail');
+  let app, db, auth;
+  let organizationsData = [];
+  let searchTerm = '';
 
-        // Message Modal DOM
-        const messageModal = document.getElementById('messageModal');
-        const messageBox = document.getElementById('messageBox');
-        const messageTitle = document.getElementById('messageTitle');
-        const messageText = document.getElementById('messageText');
-        const closeMessageModal = document.getElementById('closeMessageModal');
+  // DOM
+  const modal = document.getElementById('newOrgModal');
+  const openBtn = document.getElementById('btnNewOrg');
+  const closeBtn = document.getElementById('closeModal');
+  const form = document.getElementById('newOrgForm');
+  const orgBody = document.getElementById('orgBody');
+  const searchInput = document.getElementById('searchOrg');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const logsDiv = document.getElementById('logs');
+  const loadingIndicator = document.getElementById('loadingIndicator');
+  const btnDraftEmail = document.getElementById('btnDraftEmail');
+  const draftedEmail = document.getElementById('draftedEmail');
+  const orgNameInput = document.getElementById('orgName');
+  const orgPlanInput = document.getElementById('orgPlan');
+  const managerEmailInput = document.getElementById('managerEmail');
 
-        // --- Utility Functions ---
+  // رسالة منبثقة مخصصة
+  const messageModal = document.getElementById('messageModal');
+  const messageBox = document.getElementById('messageBox');
+  const messageTitle = document.getElementById('messageTitle');
+  const messageText = document.getElementById('messageText');
+  const closeMessageModal = document.getElementById('closeMessageModal');
 
-        /** Fetches from Gemini API with exponential backoff. */
-        async function fetchGemini(systemPrompt, userQuery, maxRetries = 5) {
-            let attempt = 0;
-            while (attempt < maxRetries) {
-                try {
-                    const payload = {
-                        contents: [{ parts: [{ text: userQuery }] }],
-                        systemInstruction: { parts: [{ text: systemPrompt }] },
-                        // Using Google Search grounding for strategic advice might be useful, 
-                        // but for simple drafting, it's not strictly necessary. 
-                        // We'll skip grounding to keep latency low.
-                    };
-
-                    const response = await fetch(API_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (response.status === 429) {
-                        // Rate limit error
-                        if (attempt === maxRetries - 1) throw new Error("API rate limit exceeded.");
-                        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                        attempt++;
-                        continue;
-                    }
-
-                    if (!response.ok) {
-                        const errorBody = await response.json();
-                        throw new Error(`API Error: ${response.status} - ${errorBody.error?.message || response.statusText}`);
-                    }
-
-                    const result = await response.json();
-                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                    return text || 'لم يتمكن الذكاء الاصطناعي من إنشاء محتوى.';
-
-                } catch (error) {
-                    if (attempt === maxRetries - 1) throw error;
-                    const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    attempt++;
-                }
-            }
-            throw new Error("Maximum retries reached for Gemini API call.");
-        }
-
-        /** Displays a custom message box. */
-        function showMessage(title, text, isError = false) {
-            messageTitle.innerText = title;
-            messageText.innerHTML = text;
-            messageTitle.classList.toggle('text-teal-300', !isError);
-            messageTitle.classList.toggle('text-red-400', isError);
-
-            messageModal.classList.remove('hidden');
-            messageModal.classList.add('flex');
-            // Animate in
-            setTimeout(() => {
-                messageBox.classList.remove('opacity-0', 'scale-95');
-                messageBox.classList.add('opacity-100', 'scale-100');
-            }, 10);
-        }
-
-        /** Closes the custom message box. */
-        function closeMessage() {
-            messageBox.classList.remove('opacity-100', 'scale-100');
-            messageBox.classList.add('opacity-0', 'scale-95');
-            setTimeout(() => {
-                messageModal.classList.add('hidden');
-                messageModal.classList.remove('flex');
-            }, 300);
-        }
-
-        closeMessageModal.onclick = closeMessage;
-
-        /** Formats a Date object to YYYY-MM-DD. */
-        function formatDate(date) {
-            if (!date || isNaN(date.getTime())) return 'غير محدد';
-            return date.toLocaleDateString('ar-SA', { year: 'numeric', month: '2-digit', day: '2-digit' });
-        }
-
-        /** Formats plan name from English to Arabic. */
-        function formatPlan(plan) {
-            const plans = { 'lite': 'لايت', 'pro': 'برو', 'enterprise': 'مؤسسي' };
-            return plans[plan] || plan;
-        }
-
-        /** Logs an activity to the UI. */
-        function logActivity(message) {
-            const now = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
-            const logEntry = document.createElement('p');
-            logEntry.className = 'border-b border-white/10 pb-1';
-            logEntry.innerHTML = `<span class="text-teal-400 font-mono">[${now}]</span> ${message}`;
-            logsDiv.prepend(logEntry);
-            document.getElementById('kpiObs').innerText = logsDiv.children.length;
-        }
-
-        /** Toggles organization status (active/suspended) */
-        async function toggleStatus(orgId, currentStatus) {
-            // ... (Toggle Status logic remains the same)
-            const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
-            try {
-                await updateDoc(doc(db, orgsCollectionPath, orgId), {
-                    status: newStatus
-                });
-                showMessage('تحديث الحالة', `تم بنجاح تغيير حالة المؤسسة ${orgId} إلى ${newStatus === 'active' ? 'نشط' : 'معلق'}`, false);
-                logActivity(`تم تحديث حالة المؤسسة <span class="font-bold">${orgId}</span> إلى ${newStatus}`);
-            } catch (error) {
-                console.error("Error toggling status: ", error);
-                showMessage('خطأ في التحديث', 'حدث خطأ أثناء تحديث حالة المؤسسة.', true);
-            }
-        }
-
-        /** Renders the organizations table based on the current data and search term. */
-        function renderOrgsTable() {
-            const now = new Date();
-            const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-            let expiringCount = 0;
-            let totalUsers = 0; // Simulated
-
-            const filteredData = organizationsData.filter(org =>
-                org.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                org.managerEmail.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-
-            if (filteredData.length === 0) {
-                orgBody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-white/60">لا توجد مؤسسات مطابقة لـ "${searchTerm}"</td></tr>`;
-            } else {
-                orgBody.innerHTML = filteredData.map(org => {
-                    const endAt = org.endAt ? org.endAt.toDate() : null;
-                    const isExpiring = endAt && endAt > now && endAt <= thirtyDaysFromNow;
-                    const isExpired = endAt && endAt < now;
-                    const statusColor = org.status === 'active'
-                        ? (isExpired ? 'bg-red-500' : (isExpiring ? 'bg-yellow-500' : 'bg-green-500'))
-                        : 'bg-gray-500';
-
-                    if (isExpiring) expiringCount++;
-                    // Simulate users based on plan
-                    totalUsers += org.plan === 'lite' ? 10 : (org.plan === 'pro' ? 50 : 200);
-
-                    // Prepare attributes for Gemini Strategy Feature
-                    const planArabic = formatPlan(org.plan);
-                    const expiryDateFormatted = formatDate(endAt);
-
-                    return `
-                        <tr class="hover:bg-white/10 transition duration-150">
-                            <td class="p-3 whitespace-nowrap">${org.name}</td>
-                            <td class="p-3 hidden sm:table-cell text-white/70">${org.managerEmail}</td>
-                            <td class="p-3 whitespace-nowrap">${planArabic}</td>
-                            <td class="p-3 whitespace-nowrap">
-                                <span class="px-3 py-1 text-xs font-semibold rounded-full ${statusColor}">
-                                    ${org.status === 'active' ? 'نشط' : 'معلق'}
-                                </span>
-                            </td>
-                            <td class="p-3 whitespace-nowrap">${expiryDateFormatted}</td>
-                            <td class="p-3 flex gap-2 items-center">
-                                <button data-id="${org.id}" data-status="${org.status}" class="toggle-status-btn text-xs font-bold text-center p-1 rounded-md transition duration-150 ${org.status === 'active' ? 'text-red-400 hover:text-red-300' : 'text-green-400 hover:text-green-300'}">
-                                    ${org.status === 'active' ? 'تجميد' : 'تفعيل'}
-                                </button>
-                                <!-- Gemini Feature 2 Button -->
-                                <button
-                                    data-name="${org.name}"
-                                    data-plan="${org.plan}"
-                                    data-expiry="${expiryDateFormatted}"
-                                    class="btn-strategy text-xs text-white bg-teal-600 hover:bg-teal-500 px-2 py-1 rounded-full flex items-center gap-1 transition duration-150"
-                                >
-                                    ✨ استراتيجية
-                                </button>
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
-
-                // Attach event listeners to the new buttons
-                document.querySelectorAll('.toggle-status-btn').forEach(button => {
-                    button.onclick = (e) => {
-                        e.stopPropagation();
-                        toggleStatus(e.target.dataset.id, e.target.dataset.status);
-                    };
-                });
-                
-                // Attach event listeners for Gemini Strategy Feature
-                document.querySelectorAll('.btn-strategy').forEach(button => {
-                    button.onclick = (e) => {
-                        e.stopPropagation();
-                        generateStrategy(
-                            e.currentTarget.dataset.name,
-                            e.currentTarget.dataset.plan,
-                            e.currentTarget.dataset.expiry
-                        );
-                    };
-                });
-            }
-
-            // Update KPIs
-            document.getElementById('kpiOrgs').innerText = organizationsData.length;
-            document.getElementById('kpiExpiring').innerText = expiringCount;
-            document.getElementById('kpiUsers').innerText = totalUsers.toLocaleString('en-US');
-        }
-
-        // --- GEMINI API Feature Implementations ---
-
-        /** Feature 1: Draft Welcome Email Handler */
-        btnDraftEmail.onclick = async () => {
-            const orgName = orgNameInput.value.trim();
-            const plan = orgPlanInput.value;
-            const managerEmail = managerEmailInput.value.trim();
-
-            if (!orgName || !plan || !managerEmail) {
-                draftedEmail.value = 'يرجى ملء اسم المؤسسة وخطة الاشتراك وبريد المدير أولاً.';
-                return;
-            }
-
-            btnDraftEmail.innerHTML = '✨ جاري الصياغة...';
-            btnDraftEmail.disabled = true;
-            draftedEmail.value = 'جاري الاتصال بنموذج Gemini...';
-
-            const systemPrompt = `أنت خبير في المبيعات وتدعم خدمة العملاء لشركة Smart HSR المتخصصة في الأنظمة التقنية. مهمتك هي صياغة رسالة بريد إلكتروني ترحيبية احترافية ومتحمسة للمدير التنفيذي لمؤسسة عميل جديد. يجب أن تكون الرسالة باللغة العربية الفصحى، محفزة، وأن تسلط الضوء على قيمة خطة الاشتراك المحددة. لا تضف سطراً للموضوع (Subject).`;
-            
-            const userQuery = `يرجى صياغة رسالة ترحيب لمدير المؤسسة: [${orgName}]، لكونهم اشتركوا في خطة [${formatPlan(plan)}] الجديدة. يجب أن تبدأ الرسالة بـ "عزيزي المدير،" وأن تنهي بـ "مع خالص التحية،\nفريق Smart HSR"`;
-
-            try {
-                const draft = await fetchGemini(systemPrompt, userQuery);
-                draftedEmail.value = draft.trim();
-                logActivity(`تم صياغة مسودة بريد ترحيبي للمؤسسة <span class="font-bold">${orgName}</span> بنجاح.`);
-            } catch (error) {
-                console.error("Gemini Draft Email Error:", error);
-                draftedEmail.value = `حدث خطأ أثناء صياغة الرسالة: ${error.message}`;
-                showMessage('خطأ في الذكاء الاصطناعي', 'فشل في صياغة الرسالة الترحيبية. تحقق من اتصالك أو حاول مرة أخرى.', true);
-            } finally {
-                btnDraftEmail.innerHTML = '✨ صياغة رسالة ترحيب للمدير';
-                btnDraftEmail.disabled = false;
-            }
-        };
-
-        /** Feature 2: Generate Strategy Handler */
-        async function generateStrategy(name, plan, expiry) {
-            showMessage('✨ تحليل وتوليد الاستراتيجية', 'جاري تحليل بيانات المؤسسة ووضع استراتيجية الترقية أو التجديد بواسطة Gemini. يرجى الانتظار...', false);
-            
-            const systemPrompt = `أنت مستشار استراتيجي متخصص في إدارة علاقات العملاء (CRM) وتخطيط التجديد لشركة تقنية (Smart HSR). مهمتك هي تقديم توصية موجزة (فقرة واحدة فقط)، بلغة عربية رسمية وذكية، لتشجيع مؤسسة عميل على التجديد أو الترقية. يجب أن تحدد التوصية الخطوة التالية المباشرة: التجديد أو الترقية إلى الخطة الأعلى (إذا كان العميل على خطة غير المؤسسية).`;
-            
-            const userQuery = `المؤسسة: ${name}. الخطة الحالية: ${formatPlan(plan)}. تاريخ الانتهاء: ${expiry}. صغ استراتيجية موجزة ومركزة للتجديد أو الترقية.`;
-
-            try {
-                const strategyText = await fetchGemini(systemPrompt, userQuery);
-                
-                // Re-display the result in the modal
-                showMessage(
-                    `✨ استراتيجية لـ ${name}`, 
-                    `<p class="text-right text-base mt-2">${strategyText}</p>`, 
-                    false
-                );
-                logActivity(`تم توليد استراتيجية لـ <span class="font-bold">${name}</span> بنجاح.`);
-            } catch (error) {
-                console.error("Gemini Strategy Error:", error);
-                showMessage('خطأ في الذكاء الاصطناعي', `فشل في توليد الاستراتيجية: ${error.message}`, true);
-            }
-        }
-
-
-        // --- Initialization & Authentication (Same as previous version) ---
-
-        async function init() {
-            try {
-                loadingIndicator.classList.remove('hidden');
-
-                // 1. Initialize Firebase
-                if (Object.keys(firebaseConfig).length === 0) {
-                    console.warn("Firebase config is empty. Using default sign-in logic.");
-                }
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                setLogLevel('Debug');
-
-                // 2. Sign In using custom token or anonymously
-                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-...
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    window.location.href = "owner-login.html";
-    return;
+  // ---------- Helpers ----------
+  function showMessage(title, text, isError = false) {
+    messageTitle.innerText = title;
+    messageText.innerHTML = text;
+    messageTitle.classList.toggle('text-teal-300', !isError);
+    messageTitle.classList.toggle('text-red-400', isError);
+    messageModal.classList.remove('hidden'); messageModal.classList.add('flex');
+    setTimeout(() => {
+      messageBox.classList.remove('opacity-0', 'scale-95');
+      messageBox.classList.add('opacity-100', 'scale-100');
+    }, 10);
   }
-  const snap = await getDoc(doc(db, "users", user.uid));
-  if (!snap.exists() || snap.data().role !== "owner") {
-    alert("🚫 لا تملك صلاحية الوصول إلى لوحة المالك");
-    await signOut(auth);
-    window.location.href = "owner-login.html";
-    return;
+  function closeMessage() {
+    messageBox.classList.remove('opacity-100', 'scale-100');
+    messageBox.classList.add('opacity-0', 'scale-95');
+    setTimeout(() => { messageModal.classList.add('hidden'); messageModal.classList.remove('flex'); }, 300);
   }
-  SIMULATED_OWNER_UID = user.uid;
-  logActivity(`تم تسجيل دخول المالك ${user.email}`);
-  startRealtimeListeners();
-  loadingIndicator.classList.add("hidden");
-});
-                }
+  closeMessageModal.onclick = closeMessage;
 
-                // 3. Wait for Auth State
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        SIMULATED_OWNER_UID = user.uid; // Use current UID as owner for demo
-                        const actualUID = user.uid;
+  function formatDate(date) {
+    if (!date || isNaN(date.getTime())) return 'غير محدد';
+    return date.toLocaleDateString('ar-SA', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  }
+  function formatPlan(plan) {
+    const plans = { 'lite': 'لايت', 'pro': 'برو', 'enterprise': 'مؤسسي' };
+    return plans[plan] || plan;
+  }
+  function logActivity(message) {
+    const now = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+    const logEntry = document.createElement('p');
+    logEntry.className = 'border-b border-white/10 pb-1';
+    logEntry.innerHTML = `<span class="text-teal-400 font-mono">[${now}]</span> ${message}`;
+    logsDiv.prepend(logEntry);
+    document.getElementById('kpiObs').innerText = logsDiv.children.length;
+  }
 
-                        // 4. Owner Check (Simulated)
-                        if (actualUID !== SIMULATED_OWNER_UID) {
-                            showMessage('خطأ في الصلاحيات', '🚫 ليس لديك صلاحية الوصول إلى هذه اللوحة.', true);
-                            return;
-                        }
+  async function toggleStatus(orgId, currentStatus) {
+    const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
+    try {
+      await updateDoc(doc(db, orgsCollectionPath, orgId), { status: newStatus });
+      showMessage('تحديث الحالة', `تم تغيير حالة المؤسسة إلى ${newStatus === 'active' ? 'نشط' : 'معلّق'}`, false);
+      logActivity(`تحديث حالة المؤسسة <span class="font-bold">${orgId}</span> إلى ${newStatus}`);
+    } catch (e) {
+      console.error(e);
+      showMessage('خطأ في التحديث', 'تعذّر تحديث الحالة.', true);
+    }
+  }
 
-                        logActivity(`تم تسجيل الدخول بنجاح للمالك UID: ${actualUID}`);
-                        startRealtimeListeners();
-                        loadingIndicator.classList.add('hidden');
+  function renderOrgsTable() {
+    const now = new Date();
+    const thirtyDaysFromNow = new Date(now.getTime() + 30*24*60*60*1000);
+    let expiringCount = 0;
+    let totalUsers = 0;
 
-                    } else {
-                        showMessage('تسجيل الدخول مطلوب', '🚫 هذه الصفحة خاصة بالمالك. يرجى تسجيل الدخول أولاً.', true);
-                        loadingIndicator.classList.add('hidden');
-                    }
-                });
+    const filtered = organizationsData.filter(org =>
+      (org.name || '').toLowerCase().includes((searchTerm||'').toLowerCase()) ||
+      (org.managerEmail || '').toLowerCase().includes((searchTerm||'').toLowerCase())
+    );
 
-            } catch (error) {
-                console.error("Initialization Error:", error);
-                showMessage('خطأ فادح', 'فشل في تهيئة التطبيق أو تسجيل الدخول.', true);
-                loadingIndicator.classList.add('hidden');
-            }
-        }
+    if (filtered.length === 0) {
+      orgBody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-white/60">لا توجد مؤسسات مطابقة لـ "${searchTerm}"</td></tr>`;
+    } else {
+      orgBody.innerHTML = filtered.map(org => {
+        const endAt = org.endAt ? org.endAt.toDate() : null;
+        const isExpiring = endAt && endAt > now && endAt <= thirtyDaysFromNow;
+        const isExpired  = endAt && endAt < now;
+        const statusColor = org.status === 'active'
+          ? (isExpired ? 'bg-red-500' : (isExpiring ? 'bg-yellow-500' : 'bg-green-500'))
+          : 'bg-gray-500';
 
-        function startRealtimeListeners() {
-            // Realtime listener for Organizations
-            const q = query(collection(db, orgsCollectionPath));
-            onSnapshot(q, (snapshot) => {
-                organizationsData = [];
-                snapshot.forEach((doc) => {
-                    organizationsData.push({ id: doc.id, ...doc.data() });
-                });
-                logActivity(`تم تحديث قائمة المؤسسات (${organizationsData.length} مؤسسة)`);
-                renderOrgsTable();
-            }, (error) => {
-                console.error("Firestore error (onSnapshot):", error);
-                showMessage('خطأ في قاعدة البيانات', 'فشل في جلب بيانات المؤسسات في الوقت الحقيقي.', true);
-            });
-        }
+        if (isExpiring) expiringCount++;
+        totalUsers += org.plan === 'lite' ? 10 : (org.plan === 'pro' ? 50 : 200);
 
+        const planArabic = formatPlan(org.plan);
+        const expiryDateFormatted = formatDate(endAt);
 
-        // --- Event Handlers ---
+        return `
+          <tr class="hover:bg-white/10 transition duration-150">
+            <td class="p-3 whitespace-nowrap">${org.name || '-'}</td>
+            <td class="p-3 hidden sm:table-cell text-white/70">${org.managerEmail || '-'}</td>
+            <td class="p-3 whitespace-nowrap">${planArabic}</td>
+            <td class="p-3 whitespace-nowrap">
+              <span class="px-3 py-1 text-xs font-semibold rounded-full ${statusColor}">
+                ${org.status === 'active' ? 'نشط' : 'معلّق'}
+              </span>
+            </td>
+            <td class="p-3 whitespace-nowrap">${expiryDateFormatted}</td>
+            <td class="p-3 flex gap-2 items-center">
+              <button data-id="${org.id}" data-status="${org.status}" 
+                class="toggle-status-btn text-xs font-bold p-1 rounded-md ${org.status === 'active' ? 'text-red-400 hover:text-red-300' : 'text-green-400 hover:text-green-300'}">
+                ${org.status === 'active' ? 'تجميد' : 'تفعيل'}
+              </button>
+              <button
+                data-name="${org.name}"
+                data-plan="${org.plan}"
+                data-expiry="${expiryDateFormatted}"
+                class="btn-strategy text-xs text-white bg-teal-600 hover:bg-teal-500 px-2 py-1 rounded-full">
+                ✨ استراتيجية
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
 
-        // Open modal
-        openBtn.onclick = () => {
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-            draftedEmail.value = ''; // Clear email on open
-        }
-        // Close modal
-        closeBtn.onclick = () => {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-        }
+      document.querySelectorAll('.toggle-status-btn').forEach(btn => {
+        btn.onclick = (e) => toggleStatus(e.currentTarget.dataset.id, e.currentTarget.dataset.status);
+      });
+      document.querySelectorAll('.btn-strategy').forEach(btn => {
+        btn.onclick = (e) => generateStrategy(
+          e.currentTarget.dataset.name,
+          e.currentTarget.dataset.plan,
+          e.currentTarget.dataset.expiry
+        );
+      });
+    }
 
-        // Search input handler
-        searchInput.oninput = (e) => {
-            searchTerm = e.target.value.trim();
-            renderOrgsTable();
+    document.getElementById('kpiOrgs').innerText = organizationsData.length;
+    document.getElementById('kpiExpiring').innerText = expiringCount;
+    document.getElementById('kpiUsers').innerText = totalUsers.toLocaleString('en-US');
+  }
+
+  // -------- Gemini (اختياري) --------
+  async function fetchGemini(systemPrompt, userQuery, maxRetries = 3) {
+    if (!API_KEY) return 'ضع API Key لـ Gemini لتفعيل هذه الميزة.';
+    let attempt = 0;
+    while (attempt < maxRetries) {
+      try {
+        const payload = {
+          contents: [{ parts: [{ text: userQuery }] }],
+          systemInstruction: { parts: [{ text: systemPrompt }] },
         };
+        const res = await fetch(API_URL, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        if (!res.ok) throw new Error(`${res.status}`);
+        const data = await res.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || 'لا يوجد نص.';
+      } catch (e) {
+        if (++attempt >= maxRetries) throw e;
+        await new Promise(r => setTimeout(r, 500 * attempt));
+      }
+    }
+  }
 
-        // Logout handler
-        logoutBtn.onclick = async () => {
-            try {
-                await signOut(auth);
-                showMessage('تسجيل الخروج', '✅ تم تسجيل الخروج بنجاح. سيتم إعادة التحميل.', false);
-                setTimeout(() => window.location.reload(), 1500);
-            } catch (error) {
-                console.error("Logout Error:", error);
-                showMessage('خطأ في الخروج', 'فشل في تسجيل الخروج.', true);
-            }
-        };
+  const btnDraftEmail = document.getElementById('btnDraftEmail');
+  const draftedEmail = document.getElementById('draftedEmail');
 
-        // Form submission handler
-        form.onsubmit = async (e) => {
-            e.preventDefault();
+  btnDraftEmail.onclick = async () => {
+    const orgName = (orgNameInput.value || '').trim();
+    const plan = orgPlanInput.value;
+    const managerEmail = (managerEmailInput.value || '').trim();
+    if (!orgName || !plan || !managerEmail) {
+      draftedEmail.value = 'يرجى ملء اسم المؤسسة وخطة الاشتراك وبريد المدير أولاً.';
+      return;
+    }
+    btnDraftEmail.disabled = true; btnDraftEmail.textContent = '✨ جاري الصياغة...';
+    const systemPrompt = `أنت خبير كتابة بريد ترحيبي لشركة Smart HSR. اكتب رسالة ترحيب عربية احترافية موجزة تبرز قيمة الخطة.`;
+    const userQuery = `صياغة ترحيب لمؤسسة ${orgName} على خطة ${formatPlan(plan)}. اختم بـ "مع خالص التحية،\\nفريق Smart HSR"`;
+    try {
+      draftedEmail.value = await fetchGemini(systemPrompt, userQuery);
+      logActivity(`صياغة بريد ترحيبي للمؤسسة ${orgName}`);
+    } catch(e) {
+      draftedEmail.value = 'تعذّر الصياغة.';
+    } finally {
+      btnDraftEmail.disabled = false; btnDraftEmail.textContent = '✨ صياغة رسالة ترحيب للمدير';
+    }
+  };
 
-            const orgName = orgNameInput.value;
-            const orgPlan = orgPlanInput.value;
-            const startDateVal = document.getElementById('startDate').value;
-            const endDateVal = document.getElementById('endDate').value;
-            const managerEmail = managerEmailInput.value;
+  async function generateStrategy(name, plan, expiry) {
+    showMessage('✨ تحليل الاستراتيجية', 'جاري التحليل...');
+    const systemPrompt = `قدّم توصية موجزة بالعربية لتجديد/ترقية اشتراك مؤسسة في Smart HSR.`;
+    const userQuery = `المؤسسة: ${name}. الخطة: ${formatPlan(plan)}. الانتهاء: ${expiry}.`;
+    try {
+      const text = await fetchGemini(systemPrompt, userQuery);
+      showMessage(`✨ استراتيجية لـ ${name}`, `<p class="text-right">${text}</p>`, false);
+      logActivity(`توليد استراتيجية لـ ${name}`);
+    } catch(e) {
+      showMessage('خطأ', 'تعذّر توليد الاستراتيجية.', true);
+    }
+  }
 
-            const orgId = 'org_' + Date.now();
-            const data = {
-                name: orgName,
-                plan: orgPlan,
-                startAt: new Date(startDateVal),
-                endAt: new Date(endDateVal),
-                managerEmail: managerEmail,
-                createdAt: serverTimestamp(),
-                status: 'active'
-            };
+  // -------- Init + Auth Guard (بدون تسجيل مجهول) --------
+  async function init() {
+    try {
+      loadingIndicator.classList.remove('hidden');
+      app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      auth = getAuth(app);
+      setLogLevel('Debug');
 
-            try {
-                await setDoc(doc(db, orgsCollectionPath, orgId), data);
-                showMessage('نجاح', `✅ تم إنشاء المؤسسة <span class="font-bold">${orgName}</span> بنجاح!`, false);
-                logActivity(`إنشاء مؤسسة جديدة: <span class="font-bold">${orgName}</span>`);
-                modal.classList.add('hidden');
-                form.reset();
-                draftedEmail.value = ''; // Ensure clear on successful creation
-            } catch (error) {
-                console.error("Firestore Write Error:", error);
-                showMessage('خطأ في الحفظ', 'حدث خطأ أثناء إنشاء المؤسسة. يرجى التحقق من المدخلات.', true);
-            }
-        };
+      onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+          // لم يسجّل الدخول => ارجعه لصفحة المالك
+          window.location.href = "owner-login.html";
+          return;
+        }
+        // تحقق الدور من وثيقة users/{uid}
+        const snap = await getDoc(doc(db, "users", user.uid));
+        if (!snap.exists() || snap.data().role !== "owner") {
+          await signOut(auth);
+          window.location.href = "owner-login.html";
+          return;
+        }
+        logActivity(`تم تسجيل دخول المالك: ${user.email || user.uid}`);
+        startRealtimeListeners();
+        loadingIndicator.classList.add('hidden');
+      });
+    } catch (e) {
+      console.error("Initialization Error:", e);
+      showMessage('خطأ', 'فشل التهيئة.', true);
+      loadingIndicator.classList.add('hidden');
+    }
+  }
 
-        // Start the application
-        window.onload = init;
-    </script>
+  function startRealtimeListeners() {
+    const q = query(collection(db, orgsCollectionPath));
+    onSnapshot(q, (snapshot) => {
+      organizationsData = [];
+      snapshot.forEach(docSnap => organizationsData.push({ id: docSnap.id, ...docSnap.data() }));
+      logActivity(`تحديث قائمة المؤسسات (${organizationsData.length})`);
+      renderOrgsTable();
+    }, (error) => {
+      console.error(error);
+      showMessage('خطأ قاعدة البيانات', 'تعذّر جلب البيانات.', true);
+    });
+  }
+
+  // Events
+  const openBtnEl = document.getElementById('btnNewOrg');
+  if (openBtnEl) openBtnEl.onclick = () => { modal.classList.remove('hidden'); modal.classList.add('flex'); draftedEmail.value=''; };
+  if (closeBtn) closeBtn.onclick = () => { modal.classList.add('hidden'); modal.classList.remove('flex'); };
+
+  searchInput.oninput = (e) => { searchTerm = e.target.value.trim(); renderOrgsTable(); };
+
+  logoutBtn.onclick = async () => { await signOut(auth); window.location.href = "owner-login.html"; };
+
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const orgName = orgNameInput.value;
+    const orgPlan = orgPlanInput.value;
+    const startDateVal = document.getElementById('startDate').value;
+    const endDateVal = document.getElementById('endDate').value;
+    const managerEmail = managerEmailInput.value;
+
+    const orgId = 'org_' + Date.now();
+    const data = {
+      name: orgName,
+      plan: orgPlan,
+      startAt: new Date(startDateVal),
+      endAt: new Date(endDateVal),
+      managerEmail,
+      createdAt: serverTimestamp(),
+      status: 'active'
+    };
+
+    try {
+      await setDoc(doc(db, orgsCollectionPath, orgId), data);
+      showMessage('نجاح', `✅ تم إنشاء المؤسسة <span class="font-bold">${orgName}</span>`, false);
+      logActivity(`إنشاء مؤسسة جديدة: <span class="font-bold">${orgName}</span>`);
+      modal.classList.add('hidden');
+      form.reset(); draftedEmail.value='';
+    } catch (e) {
+      console.error(e);
+      showMessage('خطأ في الحفظ', 'تعذّر إنشاء المؤسسة.', true);
+    }
+  };
+
+  window.onload = init;
+</script>
+
+    
 </body>
 </html>
