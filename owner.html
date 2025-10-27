@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة مالك الشركة — Smart HSR (خاصة وآمنة)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="output.css">
+  <style>
+    body {{ font-family:'Tajawal',sans-serif; background:linear-gradient(180deg,#0b2b3a,#0ea5a1); min-height:100vh; color:#fff; }}
+    header {{ background:rgba(255,255,255,.08); border-bottom:1px solid rgba(255,255,255,.15); backdrop-filter:blur(10px) }}
+    .table-head th{{ padding:.75rem; text-align:right; opacity:.8 }}
+    .table-row td{{ padding:.75rem; }}
+  </style>
+</head>
+<body>
+  <header class="sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-white/90 flex items-center justify-center text-[#0b2b3a] font-extrabold text-xl">SH</div>
+        <h1 class="text-lg font-extrabold">Smart HSR <span class="text-teal-300">Owner Console</span></h1>
+      </div>
+      <button id="logoutBtn" class="btn">🚪 تسجيل الخروج</button>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 py-10">
+    <h2 class="text-3xl font-black mb-6">لوحة مالك الشركة (خاصة)</h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+      <div class="card p-6 text-center">
+        <div class="text-sm opacity-70">إجمالي المؤسسات</div>
+        <div id="kpiOrgs" class="text-4xl font-extrabold mt-1">--</div>
+      </div>
+      <div class="card p-6 text-center">
+        <div class="text-sm opacity-70">المستخدمون الكلي</div>
+        <div id="kpiUsers" class="text-4xl font-extrabold mt-1">--</div>
+      </div>
+      <div class="card p-6 text-center">
+        <div class="text-sm opacity-70">انتهت خلال 30 يوم</div>
+        <div id="kpiExpired" class="text-4xl font-extrabold mt-1">--</div>
+      </div>
+      <div class="card p-6 text-center">
+        <div class="text-sm opacity-70">الملاحظات</div>
+        <div id="kpiObs" class="text-4xl font-extrabold mt-1">--</div>
+      </div>
+    </div>
+
+    <section class="card p-6 mb-10">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-2xl font-bold">المؤسسات</h3>
+        <button id="btnNewOrg" class="btn">➕ إضافة مؤسسة</button>
+      </div>
+      <input id="searchOrg" type="text" placeholder="🔍 بحث بالاسم" class="w-full p-3 rounded-xl text-black mb-4">
+      <div id="orgsTable" class="overflow-x-auto bg-white/5 rounded-xl p-4 text-white">
+        <table class="w-full text-sm text-right">
+          <thead class="border-b border-white/20 table-head">
+            <tr class="text-white/80">
+              <th>الاسم</th>
+              <th>الخطة</th>
+              <th>الحالة</th>
+              <th>تاريخ الانتهاء</th>
+              <th>إجراءات</th>
+            </tr>
+          </thead>
+          <tbody id="orgBody">
+            <tr><td colspan="5" class="text-center p-4 text-white/60">جاري التحميل...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card p-6">
+      <h3 class="text-2xl font-bold mb-4">السجل الأمني (آخر 7 أيام)</h3>
+      <div id="logs" class="text-sm text-white/80 space-y-2 max-h-72 overflow-y-auto">
+        <p>جاري التحميل...</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal إنشاء مؤسسة -->
+  <div id="newOrgModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-2xl p-8 w-full max-w-lg text-black relative">
+      <button id="closeModal" class="absolute top-4 left-4 text-gray-500 hover:text-black">✖</button>
+      <h2 class="text-2xl font-extrabold mb-6 text-center text-[#0b2b3a]">➕ إنشاء مؤسسة جديدة</h2>
+      <form id="newOrgForm" class="space-y-5">
+        <div><label class="block text-sm font-semibold mb-1">اسم المؤسسة</label><input id="orgName" required class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-[#0ea5a1]"></div>
+        <div><label class="block text-sm font-semibold mb-1">خطة الاشتراك</label><select id="orgPlan" class="w-full border border-gray-300 rounded-xl p-3"><option value="lite">Lite</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option></select></div>
+        <div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-semibold mb-1">تاريخ البداية</label><input type="date" id="startDate" class="w-full border border-gray-300 rounded-xl p-3"></div><div><label class="block text-sm font-semibold mb-1">تاريخ الانتهاء</label><input type="date" id="endDate" class="w-full border border-gray-300 rounded-xl p-3"></div></div>
+        <div><label class="block text-sm font-semibold mb-1">البريد الإلكتروني لمدير المؤسسة</label><input id="managerEmail" type="email" required class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-[#0ea5a1]"></div>
+        <div class="flex justify-center mt-6"><button type="submit" class="btn">🚀 إنشاء المؤسسة</button></div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module">
+    import {{ auth, db }} from './firebase-core.js';
+    import {{ onAuthStateChanged, signOut }} from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
+    import {{ collection, getDocs, query, orderBy, limit, addDoc, doc, setDoc, serverTimestamp, Timestamp }} from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js';
+
+    const OWNER_UID = 'REPLACE_WITH_OWNER_UID';
+    const logoutBtn = document.getElementById('logoutBtn');
+    logoutBtn.addEventListener('click', () => signOut(auth).then(() => location.href = 'owner-login.html'));
+
+    const modal = document.getElementById('newOrgModal');
+    const openBtn = document.getElementById('btnNewOrg');
+    const closeBtn = document.getElementById('closeModal');
+    const form = document.getElementById('newOrgForm');
+    openBtn.onclick = () => modal.classList.remove('hidden');
+    closeBtn.onclick = () => modal.classList.add('hidden');
+
+    onAuthStateChanged(auth, async (user) => {{
+      if (!user) {{ location.href = 'owner-login.html'; return; }}
+      if (user.uid !== OWNER_UID) {{ await signOut(auth); location.href='owner-login.html'; return; }}
+      await loadKPIs();
+      await loadOrgs();
+      await loadSecurityLogs();
+    }});
+
+    async function loadKPIs() {{
+      const orgsSnap = await getDocs(collection(db,'orgs'));
+      document.getElementById('kpiOrgs').innerText = orgsSnap.size;
+
+      const usersSnap = await getDocs(collection(db,'orgUsers'));
+      document.getElementById('kpiUsers').innerText = usersSnap.size;
+
+      const subsSnap = await getDocs(collection(db,'subscriptions'));
+      let exp = 0;
+      const now = new Date();
+      subsSnap.forEach(s => {{
+        const d = s.data();
+        if (d.endAt && d.endAt.toDate && d.endAt.toDate() < now) exp++;
+      }});
+      document.getElementById('kpiExpired').innerText = exp;
+
+      const obsSnap = await getDocs(collection(db,'observations'));
+      document.getElementById('kpiObs').innerText = obsSnap.size;
+    }}
+
+    async function loadOrgs() {{
+      const body = document.getElementById('orgBody');
+      body.innerHTML = '';
+      const snaps = await getDocs(collection(db,'orgs'));
+      snaps.forEach(o => {{
+        const d = o.data();
+        const tr = document.createElement('tr');
+        tr.className='table-row';
+        tr.innerHTML = `
+          <td>{{{{d.name||'—'}}}}</td>
+          <td>{{{{d.plan||'—'}}}} </td>
+          <td>{{{{d.status||'active'}}}}</td>
+          <td>{{{{d.endAt && d.endAt.seconds ? new Date(d.endAt.seconds*1000).toLocaleDateString('ar-SA') : '—'}}}}</td>
+          <td><button class="btn px-3 py-1">فتح</button></td>
+        `;
+        body.appendChild(tr);
+      }});
+      if (!snaps.size) body.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-white/60">لا توجد مؤسسات</td></tr>';
+    }}
+
+    async function loadSecurityLogs() {{
+      const logsDiv = document.getElementById('logs');
+      logsDiv.innerHTML = '';
+      const q = query(collection(db,'auditLogs'), orderBy('createdAt','desc'), limit(100));
+      const snaps = await getDocs(q);
+      snaps.forEach(l => {{
+        const d = l.data();
+        const ts = d.createdAt?.toDate ? d.createdAt.toDate() : null;
+        const p = document.createElement('p');
+        p.innerHTML = `• <b>{{{{d.action}}}}</b> — {{{{d.email||'—'}}}} <span class="opacity-70">(${{{{ts ? ts.toLocaleString('ar-SA') : '—'}}}})</span>`;
+        logsDiv.appendChild(p);
+      }});
+      if (!snaps.size) logsDiv.innerHTML = '<p class="opacity-70">لا توجد سجلات</p>';
+    }}
+
+    form.addEventListener('submit', async (e) => {{
+      e.preventDefault();
+      const orgId = 'org_' + Date.now();
+      const data = {{
+        name: document.getElementById('orgName').value.trim(),
+        plan: document.getElementById('orgPlan').value,
+        startAt: serverTimestamp(),
+        endAt: document.getElementById('endDate').value ? Timestamp.fromDate(new Date(document.getElementById('endDate').value)) : null,
+        managerEmail: document.getElementById('managerEmail').value.trim(),
+        status: 'active',
+        createdAt: serverTimestamp()
+      }};
+      await setDoc(doc(db,'orgs', orgId), data);
+      await addDoc(collection(db,'auditLogs'), {{ action:'ORG_CREATE', email:null, userAgent:navigator.userAgent, createdAt: serverTimestamp() }});
+      modal.classList.add('hidden');
+      await loadOrgs();
+      alert('✅ تم إنشاء المؤسسة');
+    }});
+  </script>
+</body>
+</html>

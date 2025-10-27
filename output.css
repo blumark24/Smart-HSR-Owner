@@ -1,0 +1,5 @@
+:root{ --navy:#0b2b3a; --teal:#0ea5a1; }
+body{font-family:'Tajawal',sans-serif;}
+.btn{background:linear-gradient(90deg,var(--teal),var(--navy));color:#fff;border-radius:999px;padding:.7rem 1.6rem;font-weight:800;transition:.3s;}
+.btn:hover{transform:scale(1.03);box-shadow:0 10px 25px rgba(14,165,161,.35)}
+.card{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:20px;backdrop-filter:blur(14px);}
