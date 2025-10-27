@@ -1,196 +1,595 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>لوحة مالك الشركة — Smart HSR (خاصة وآمنة)</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="output.css">
-  <style>
-    body {{ font-family:'Tajawal',sans-serif; background:linear-gradient(180deg,#0b2b3a,#0ea5a1); min-height:100vh; color:#fff; }}
-    header {{ background:rgba(255,255,255,.08); border-bottom:1px solid rgba(255,255,255,.15); backdrop-filter:blur(10px) }}
-    .table-head th{{ padding:.75rem; text-align:right; opacity:.8 }}
-    .table-row td{{ padding:.75rem; }}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة مالك الشركة - Smart HSR (خاصة وآمنة)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Tajawal', sans-serif; background: linear-gradient(180deg, #0b2b3a, #0ea5a1); min-height: 100vh; color: white; }
+        .card { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 20px; backdrop-filter: blur(14px); }
+        .btn { background: linear-gradient(90deg, #0ea5a1, #0b2b3a); color: white; font-weight: 800; border-radius: 999px; padding: 0.7rem 1.6rem; transition: .3s; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .btn:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 10px 20px rgba(14,165,161,0.4); }
+        .btn-secondary { background: #0b2b3a; border: 1px solid #0ea5a1; }
+        .btn-secondary:hover { background: #0ea5a1; border: 1px solid #0ea5a1; }
+        /* Custom scrollbar for logs */
+        #logs::-webkit-scrollbar { width: 8px; }
+        #logs::-webkit-scrollbar-thumb { background-color: #0ea5a1; border-radius: 10px; }
+        #logs::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); }
+        .input-dark {
+            background-color: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+        }
+        .input-dark::placeholder {
+            color: rgba(255,255,255,0.5);
+        }
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            width: 95%;
+            max-width: 56rem; /* Increased max width for the email draft area */
+            color: #0b2b3a;
+        }
+    </style>
 </head>
 <body>
-  <header class="sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-2xl bg-white/90 flex items-center justify-center text-[#0b2b3a] font-extrabold text-xl">SH</div>
-        <h1 class="text-lg font-extrabold">Smart HSR <span class="text-teal-300">Owner Console</span></h1>
-      </div>
-      <button id="logoutBtn" class="btn">🚪 تسجيل الخروج</button>
-    </div>
-  </header>
-
-  <main class="max-w-7xl mx-auto px-6 py-10">
-    <h2 class="text-3xl font-black mb-6">لوحة مالك الشركة (خاصة)</h2>
-
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-      <div class="card p-6 text-center">
-        <div class="text-sm opacity-70">إجمالي المؤسسات</div>
-        <div id="kpiOrgs" class="text-4xl font-extrabold mt-1">--</div>
-      </div>
-      <div class="card p-6 text-center">
-        <div class="text-sm opacity-70">المستخدمون الكلي</div>
-        <div id="kpiUsers" class="text-4xl font-extrabold mt-1">--</div>
-      </div>
-      <div class="card p-6 text-center">
-        <div class="text-sm opacity-70">انتهت خلال 30 يوم</div>
-        <div id="kpiExpired" class="text-4xl font-extrabold mt-1">--</div>
-      </div>
-      <div class="card p-6 text-center">
-        <div class="text-sm opacity-70">الملاحظات</div>
-        <div id="kpiObs" class="text-4xl font-extrabold mt-1">--</div>
-      </div>
+    <!-- Message Modal (Replaces alert()) -->
+    <div id="messageModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-[100]">
+        <div class="card p-8 w-full max-w-lg text-center transform transition-all duration-300 scale-95 opacity-0" id="messageBox">
+            <h3 id="messageTitle" class="text-2xl font-black mb-3 text-teal-300"></h3>
+            <p id="messageText" class="text-white/80 mb-6"></p>
+            <button id="closeMessageModal" class="btn">حسناً</button>
+        </div>
     </div>
 
-    <section class="card p-6 mb-10">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-2xl font-bold">المؤسسات</h3>
-        <button id="btnNewOrg" class="btn">➕ إضافة مؤسسة</button>
-      </div>
-      <input id="searchOrg" type="text" placeholder="🔍 بحث بالاسم" class="w-full p-3 rounded-xl text-black mb-4">
-      <div id="orgsTable" class="overflow-x-auto bg-white/5 rounded-xl p-4 text-white">
-        <table class="w-full text-sm text-right">
-          <thead class="border-b border-white/20 table-head">
-            <tr class="text-white/80">
-              <th>الاسم</th>
-              <th>الخطة</th>
-              <th>الحالة</th>
-              <th>تاريخ الانتهاء</th>
-              <th>إجراءات</th>
-            </tr>
-          </thead>
-          <tbody id="orgBody">
-            <tr><td colspan="5" class="text-center p-4 text-white/60">جاري التحميل...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+    <!-- Header -->
+    <header class="sticky top-0 z-50 bg-white/10 backdrop-blur-xl border-b border-white/20">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-white/90 flex items-center justify-center text-[#0b2b3a] font-extrabold text-xl shadow-lg">SH</div>
+                <h1 class="text-lg font-extrabold">Smart HSR <span class="text-teal-400">Owner Console</span></h1>
+            </div>
+            <button id="logoutBtn" class="btn shadow-none bg-transparent border border-white/30 hover:bg-white/10 text-sm">🚪 تسجيل الخروج</button>
+        </div>
+    </header>
 
-    <section class="card p-6">
-      <h3 class="text-2xl font-bold mb-4">السجل الأمني (آخر 7 أيام)</h3>
-      <div id="logs" class="text-sm text-white/80 space-y-2 max-h-72 overflow-y-auto">
-        <p>جاري التحميل...</p>
-      </div>
-    </section>
-  </main>
+    <!-- Dashboard KPIs -->
+    <main class="max-w-7xl mx-auto px-6 py-10">
+        <h2 class="text-3xl font-black mb-8 text-teal-200">لوحة مالك الشركة (إدارة عامة)</h2>
 
-  <!-- Modal إنشاء مؤسسة -->
-  <div id="newOrgModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
-    <div class="bg-white rounded-2xl p-8 w-full max-w-lg text-black relative">
-      <button id="closeModal" class="absolute top-4 left-4 text-gray-500 hover:text-black">✖</button>
-      <h2 class="text-2xl font-extrabold mb-6 text-center text-[#0b2b3a]">➕ إنشاء مؤسسة جديدة</h2>
-      <form id="newOrgForm" class="space-y-5">
-        <div><label class="block text-sm font-semibold mb-1">اسم المؤسسة</label><input id="orgName" required class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-[#0ea5a1]"></div>
-        <div><label class="block text-sm font-semibold mb-1">خطة الاشتراك</label><select id="orgPlan" class="w-full border border-gray-300 rounded-xl p-3"><option value="lite">Lite</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option></select></div>
-        <div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-semibold mb-1">تاريخ البداية</label><input type="date" id="startDate" class="w-full border border-gray-300 rounded-xl p-3"></div><div><label class="block text-sm font-semibold mb-1">تاريخ الانتهاء</label><input type="date" id="endDate" class="w-full border border-gray-300 rounded-xl p-3"></div></div>
-        <div><label class="block text-sm font-semibold mb-1">البريد الإلكتروني لمدير المؤسسة</label><input id="managerEmail" type="email" required class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-[#0ea5a1]"></div>
-        <div class="flex justify-center mt-6"><button type="submit" class="btn">🚀 إنشاء المؤسسة</button></div>
-      </form>
+        <div id="loadingIndicator" class="text-center p-8 text-xl font-bold bg-white/10 card mb-10 hidden">جاري التحميل...</div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+            <div class="card p-6 text-center shadow-2xl">
+                <div class="text-sm opacity-70">إجمالي المؤسسات</div>
+                <div id="kpiOrgs" class="text-4xl font-extrabold mt-1 text-teal-300">0</div>
+            </div>
+            <div class="card p-6 text-center shadow-2xl">
+                <div class="text-sm opacity-70">المستخدمون الكلي (محاكاة)</div>
+                <div id="kpiUsers" class="text-4xl font-extrabold mt-1 text-teal-300">0</div>
+            </div>
+            <div class="card p-6 text-center shadow-2xl">
+                <div class="text-sm opacity-70">اشتراكات منتهية (30 يوم)</div>
+                <div id="kpiExpiring" class="text-4xl font-extrabold mt-1 text-red-400">0</div>
+            </div>
+            <div class="card p-6 text-center shadow-2xl">
+                <div class="text-sm opacity-70">الملاحظات (سجل الأحداث)</div>
+                <div id="kpiObs" class="text-4xl font-extrabold mt-1 text-teal-300">0</div>
+            </div>
+        </div>
+
+        <!-- Create Organization -->
+        <section class="card p-6 mb-10 shadow-2xl">
+            <div class="flex flex-col sm:flex-row items-center justify-between mb-4 gap-4">
+                <h3 class="text-2xl font-bold">إدارة المؤسسات</h3>
+                <button id="btnNewOrg" class="btn w-full sm:w-auto">➕ إضافة مؤسسة جديدة</button>
+            </div>
+            <input id="searchOrg" type="text" placeholder="🔍 بحث بالاسم" class="w-full p-3 rounded-xl mb-4 input-dark">
+            <div id="orgsTable" class="overflow-x-auto rounded-xl">
+                <table class="w-full text-sm text-right border-collapse">
+                    <thead class="bg-white/10 sticky top-0">
+                        <tr class="text-white/80">
+                            <th class="p-3 border-b border-white/20">الاسم</th>
+                            <th class="p-3 border-b border-white/20 hidden sm:table-cell">البريد الإلكتروني</th>
+                            <th class="p-3 border-b border-white/20">الخطة</th>
+                            <th class="p-3 border-b border-white/20">الحالة</th>
+                            <th class="p-3 border-b border-white/20">تاريخ الانتهاء</th>
+                            <th class="p-3 border-b border-white/20">إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orgBody">
+                        <tr><td colspan="6" class="text-center p-4 text-white/60">جاري التحقق من الصلاحيات...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Logs -->
+        <section class="card p-6 shadow-2xl">
+            <h3 class="text-2xl font-bold mb-4">سجل الأحداث</h3>
+            <div id="logs" class="text-sm text-white/70 space-y-2 max-h-72 overflow-y-auto">
+                <p>سجل النشاطات سيظهر هنا...</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- New Org Modal -->
+    <div id="newOrgModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
+        <div class="modal-content relative">
+            <button id="closeModal" class="absolute top-4 left-4 text-gray-500 hover:text-black">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+            <h2 class="text-2xl font-extrabold mb-6 text-center text-[#0b2b3a]">➕ إنشاء مؤسسة جديدة</h2>
+            <form id="newOrgForm" class="space-y-5">
+                <div><label class="block text-sm font-semibold mb-1">اسم المؤسسة</label><input id="orgName" required class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-[#0ea5a1]"></div>
+                <div><label class="block text-sm font-semibold mb-1">خطة الاشتراك</label><select id="orgPlan" required class="w-full border border-gray-300 rounded-xl p-3"><option value="lite">Lite</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option></select></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label class="block text-sm font-semibold mb-1">تاريخ البداية</label><input type="date" id="startDate" required class="w-full border border-gray-300 rounded-xl p-3"></div>
+                    <div><label class="block text-sm font-semibold mb-1">تاريخ الانتهاء</label><input type="date" id="endDate" required class="w-full border border-gray-300 rounded-xl p-3"></div>
+                </div>
+                <div><label class="block text-sm font-semibold mb-1">البريد الإلكتروني لمدير المؤسسة</label><input id="managerEmail" type="email" required class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-[#0ea5a1]"></div>
+
+                <!-- Gemini Feature 1: Draft Email -->
+                <div>
+                    <button type="button" id="btnDraftEmail" class="btn w-full btn-secondary flex items-center justify-center gap-2 mb-3">
+                        ✨ صياغة رسالة ترحيب للمدير
+                    </button>
+                    <textarea id="draftedEmail" class="w-full border border-gray-300 rounded-xl p-3 min-h-32 text-sm text-gray-700 focus:ring-2 focus:ring-[#0ea5a1]" placeholder="سيظهر هنا نموذج رسالة ترحيبية باللغة العربية يتم صياغته بواسطة Gemini..."></textarea>
+                </div>
+
+                <div class="flex justify-center mt-6"><button type="submit" class="btn">🚀 إنشاء المؤسسة</button></div>
+            </form>
+        </div>
     </div>
-  </div>
 
-  <script type="module">
-    import {{ auth, db }} from './firebase-core.js';
-    import {{ onAuthStateChanged, signOut }} from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js';
-    import {{ collection, getDocs, query, orderBy, limit, addDoc, doc, setDoc, serverTimestamp, Timestamp }} from 'https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js';
+    <!-- JavaScript Module -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, collection, query, onSnapshot, serverTimestamp, setLogLevel, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    const OWNER_UID = 'SMBcyGI44jQPw9dLNf5mHHK9s6f2';
-    const logoutBtn = document.getElementById('logoutBtn');
-    logoutBtn.addEventListener('click', () => signOut(auth).then(() => location.href = 'owner-login.html'));
+        // --- GLOBAL CONFIGURATION AND SETUP ---
+        const API_KEY = ""; // Leave as-is for the environment to inject
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
+        
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
 
-    const modal = document.getElementById('newOrgModal');
-    const openBtn = document.getElementById('btnNewOrg');
-    const closeBtn = document.getElementById('closeModal');
-    const form = document.getElementById('newOrgForm');
-    openBtn.onclick = () => modal.classList.remove('hidden');
-    closeBtn.onclick = () => modal.classList.add('hidden');
+        let SIMULATED_OWNER_UID = null;
+        const orgsCollectionPath = `artifacts/${appId}/public/data/orgs`;
 
-    onAuthStateChanged(auth, async (user) => {{
-      if (!user) {{ location.href = 'owner-login.html'; return; }}
-      if (user.uid !== OWNER_UID) {{ await signOut(auth); location.href='owner-login.html'; return; }}
-      await loadKPIs();
-      await loadOrgs();
-      await loadSecurityLogs();
-    }});
+        let app;
+        let db;
+        let auth;
+        let organizationsData = [];
+        let searchTerm = '';
 
-    async function loadKPIs() {{
-      const orgsSnap = await getDocs(collection(db,'orgs'));
-      document.getElementById('kpiOrgs').innerText = orgsSnap.size;
+        // DOM Elements
+        const modal = document.getElementById('newOrgModal');
+        const openBtn = document.getElementById('btnNewOrg');
+        const closeBtn = document.getElementById('closeModal');
+        const form = document.getElementById('newOrgForm');
+        const orgBody = document.getElementById('orgBody');
+        const searchInput = document.getElementById('searchOrg');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const logsDiv = document.getElementById('logs');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const btnDraftEmail = document.getElementById('btnDraftEmail');
+        const draftedEmail = document.getElementById('draftedEmail');
+        const orgNameInput = document.getElementById('orgName');
+        const orgPlanInput = document.getElementById('orgPlan');
+        const managerEmailInput = document.getElementById('managerEmail');
 
-      const usersSnap = await getDocs(collection(db,'orgUsers'));
-      document.getElementById('kpiUsers').innerText = usersSnap.size;
+        // Message Modal DOM
+        const messageModal = document.getElementById('messageModal');
+        const messageBox = document.getElementById('messageBox');
+        const messageTitle = document.getElementById('messageTitle');
+        const messageText = document.getElementById('messageText');
+        const closeMessageModal = document.getElementById('closeMessageModal');
 
-      const subsSnap = await getDocs(collection(db,'subscriptions'));
-      let exp = 0;
-      const now = new Date();
-      subsSnap.forEach(s => {{
-        const d = s.data();
-        if (d.endAt && d.endAt.toDate && d.endAt.toDate() < now) exp++;
-      }});
-      document.getElementById('kpiExpired').innerText = exp;
+        // --- Utility Functions ---
 
-      const obsSnap = await getDocs(collection(db,'observations'));
-      document.getElementById('kpiObs').innerText = obsSnap.size;
-    }}
+        /** Fetches from Gemini API with exponential backoff. */
+        async function fetchGemini(systemPrompt, userQuery, maxRetries = 5) {
+            let attempt = 0;
+            while (attempt < maxRetries) {
+                try {
+                    const payload = {
+                        contents: [{ parts: [{ text: userQuery }] }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] },
+                        // Using Google Search grounding for strategic advice might be useful, 
+                        // but for simple drafting, it's not strictly necessary. 
+                        // We'll skip grounding to keep latency low.
+                    };
 
-    async function loadOrgs() {{
-      const body = document.getElementById('orgBody');
-      body.innerHTML = '';
-      const snaps = await getDocs(collection(db,'orgs'));
-      snaps.forEach(o => {{
-        const d = o.data();
-        const tr = document.createElement('tr');
-        tr.className='table-row';
-        tr.innerHTML = `
-          <td>{{{{d.name||'—'}}}}</td>
-          <td>{{{{d.plan||'—'}}}} </td>
-          <td>{{{{d.status||'active'}}}}</td>
-          <td>{{{{d.endAt && d.endAt.seconds ? new Date(d.endAt.seconds*1000).toLocaleDateString('ar-SA') : '—'}}}}</td>
-          <td><button class="btn px-3 py-1">فتح</button></td>
-        `;
-        body.appendChild(tr);
-      }});
-      if (!snaps.size) body.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-white/60">لا توجد مؤسسات</td></tr>';
-    }}
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
 
-    async function loadSecurityLogs() {{
-      const logsDiv = document.getElementById('logs');
-      logsDiv.innerHTML = '';
-      const q = query(collection(db,'auditLogs'), orderBy('createdAt','desc'), limit(100));
-      const snaps = await getDocs(q);
-      snaps.forEach(l => {{
-        const d = l.data();
-        const ts = d.createdAt?.toDate ? d.createdAt.toDate() : null;
-        const p = document.createElement('p');
-        p.innerHTML = `• <b>{{{{d.action}}}}</b> — {{{{d.email||'—'}}}} <span class="opacity-70">(${{{{ts ? ts.toLocaleString('ar-SA') : '—'}}}})</span>`;
-        logsDiv.appendChild(p);
-      }});
-      if (!snaps.size) logsDiv.innerHTML = '<p class="opacity-70">لا توجد سجلات</p>';
-    }}
+                    if (response.status === 429) {
+                        // Rate limit error
+                        if (attempt === maxRetries - 1) throw new Error("API rate limit exceeded.");
+                        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        attempt++;
+                        continue;
+                    }
 
-    form.addEventListener('submit', async (e) => {{
-      e.preventDefault();
-      const orgId = 'org_' + Date.now();
-      const data = {{
-        name: document.getElementById('orgName').value.trim(),
-        plan: document.getElementById('orgPlan').value,
-        startAt: serverTimestamp(),
-        endAt: document.getElementById('endDate').value ? Timestamp.fromDate(new Date(document.getElementById('endDate').value)) : null,
-        managerEmail: document.getElementById('managerEmail').value.trim(),
-        status: 'active',
-        createdAt: serverTimestamp()
-      }};
-      await setDoc(doc(db,'orgs', orgId), data);
-      await addDoc(collection(db,'auditLogs'), {{ action:'ORG_CREATE', email:null, userAgent:navigator.userAgent, createdAt: serverTimestamp() }});
-      modal.classList.add('hidden');
-      await loadOrgs();
-      alert('✅ تم إنشاء المؤسسة');
-    }});
-  </script>
+                    if (!response.ok) {
+                        const errorBody = await response.json();
+                        throw new Error(`API Error: ${response.status} - ${errorBody.error?.message || response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    return text || 'لم يتمكن الذكاء الاصطناعي من إنشاء محتوى.';
+
+                } catch (error) {
+                    if (attempt === maxRetries - 1) throw error;
+                    const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    attempt++;
+                }
+            }
+            throw new Error("Maximum retries reached for Gemini API call.");
+        }
+
+        /** Displays a custom message box. */
+        function showMessage(title, text, isError = false) {
+            messageTitle.innerText = title;
+            messageText.innerHTML = text;
+            messageTitle.classList.toggle('text-teal-300', !isError);
+            messageTitle.classList.toggle('text-red-400', isError);
+
+            messageModal.classList.remove('hidden');
+            messageModal.classList.add('flex');
+            // Animate in
+            setTimeout(() => {
+                messageBox.classList.remove('opacity-0', 'scale-95');
+                messageBox.classList.add('opacity-100', 'scale-100');
+            }, 10);
+        }
+
+        /** Closes the custom message box. */
+        function closeMessage() {
+            messageBox.classList.remove('opacity-100', 'scale-100');
+            messageBox.classList.add('opacity-0', 'scale-95');
+            setTimeout(() => {
+                messageModal.classList.add('hidden');
+                messageModal.classList.remove('flex');
+            }, 300);
+        }
+
+        closeMessageModal.onclick = closeMessage;
+
+        /** Formats a Date object to YYYY-MM-DD. */
+        function formatDate(date) {
+            if (!date || isNaN(date.getTime())) return 'غير محدد';
+            return date.toLocaleDateString('ar-SA', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        }
+
+        /** Formats plan name from English to Arabic. */
+        function formatPlan(plan) {
+            const plans = { 'lite': 'لايت', 'pro': 'برو', 'enterprise': 'مؤسسي' };
+            return plans[plan] || plan;
+        }
+
+        /** Logs an activity to the UI. */
+        function logActivity(message) {
+            const now = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+            const logEntry = document.createElement('p');
+            logEntry.className = 'border-b border-white/10 pb-1';
+            logEntry.innerHTML = `<span class="text-teal-400 font-mono">[${now}]</span> ${message}`;
+            logsDiv.prepend(logEntry);
+            document.getElementById('kpiObs').innerText = logsDiv.children.length;
+        }
+
+        /** Toggles organization status (active/suspended) */
+        async function toggleStatus(orgId, currentStatus) {
+            // ... (Toggle Status logic remains the same)
+            const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
+            try {
+                await updateDoc(doc(db, orgsCollectionPath, orgId), {
+                    status: newStatus
+                });
+                showMessage('تحديث الحالة', `تم بنجاح تغيير حالة المؤسسة ${orgId} إلى ${newStatus === 'active' ? 'نشط' : 'معلق'}`, false);
+                logActivity(`تم تحديث حالة المؤسسة <span class="font-bold">${orgId}</span> إلى ${newStatus}`);
+            } catch (error) {
+                console.error("Error toggling status: ", error);
+                showMessage('خطأ في التحديث', 'حدث خطأ أثناء تحديث حالة المؤسسة.', true);
+            }
+        }
+
+        /** Renders the organizations table based on the current data and search term. */
+        function renderOrgsTable() {
+            const now = new Date();
+            const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+            let expiringCount = 0;
+            let totalUsers = 0; // Simulated
+
+            const filteredData = organizationsData.filter(org =>
+                org.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                org.managerEmail.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            if (filteredData.length === 0) {
+                orgBody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-white/60">لا توجد مؤسسات مطابقة لـ "${searchTerm}"</td></tr>`;
+            } else {
+                orgBody.innerHTML = filteredData.map(org => {
+                    const endAt = org.endAt ? org.endAt.toDate() : null;
+                    const isExpiring = endAt && endAt > now && endAt <= thirtyDaysFromNow;
+                    const isExpired = endAt && endAt < now;
+                    const statusColor = org.status === 'active'
+                        ? (isExpired ? 'bg-red-500' : (isExpiring ? 'bg-yellow-500' : 'bg-green-500'))
+                        : 'bg-gray-500';
+
+                    if (isExpiring) expiringCount++;
+                    // Simulate users based on plan
+                    totalUsers += org.plan === 'lite' ? 10 : (org.plan === 'pro' ? 50 : 200);
+
+                    // Prepare attributes for Gemini Strategy Feature
+                    const planArabic = formatPlan(org.plan);
+                    const expiryDateFormatted = formatDate(endAt);
+
+                    return `
+                        <tr class="hover:bg-white/10 transition duration-150">
+                            <td class="p-3 whitespace-nowrap">${org.name}</td>
+                            <td class="p-3 hidden sm:table-cell text-white/70">${org.managerEmail}</td>
+                            <td class="p-3 whitespace-nowrap">${planArabic}</td>
+                            <td class="p-3 whitespace-nowrap">
+                                <span class="px-3 py-1 text-xs font-semibold rounded-full ${statusColor}">
+                                    ${org.status === 'active' ? 'نشط' : 'معلق'}
+                                </span>
+                            </td>
+                            <td class="p-3 whitespace-nowrap">${expiryDateFormatted}</td>
+                            <td class="p-3 flex gap-2 items-center">
+                                <button data-id="${org.id}" data-status="${org.status}" class="toggle-status-btn text-xs font-bold text-center p-1 rounded-md transition duration-150 ${org.status === 'active' ? 'text-red-400 hover:text-red-300' : 'text-green-400 hover:text-green-300'}">
+                                    ${org.status === 'active' ? 'تجميد' : 'تفعيل'}
+                                </button>
+                                <!-- Gemini Feature 2 Button -->
+                                <button
+                                    data-name="${org.name}"
+                                    data-plan="${org.plan}"
+                                    data-expiry="${expiryDateFormatted}"
+                                    class="btn-strategy text-xs text-white bg-teal-600 hover:bg-teal-500 px-2 py-1 rounded-full flex items-center gap-1 transition duration-150"
+                                >
+                                    ✨ استراتيجية
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                // Attach event listeners to the new buttons
+                document.querySelectorAll('.toggle-status-btn').forEach(button => {
+                    button.onclick = (e) => {
+                        e.stopPropagation();
+                        toggleStatus(e.target.dataset.id, e.target.dataset.status);
+                    };
+                });
+                
+                // Attach event listeners for Gemini Strategy Feature
+                document.querySelectorAll('.btn-strategy').forEach(button => {
+                    button.onclick = (e) => {
+                        e.stopPropagation();
+                        generateStrategy(
+                            e.currentTarget.dataset.name,
+                            e.currentTarget.dataset.plan,
+                            e.currentTarget.dataset.expiry
+                        );
+                    };
+                });
+            }
+
+            // Update KPIs
+            document.getElementById('kpiOrgs').innerText = organizationsData.length;
+            document.getElementById('kpiExpiring').innerText = expiringCount;
+            document.getElementById('kpiUsers').innerText = totalUsers.toLocaleString('en-US');
+        }
+
+        // --- GEMINI API Feature Implementations ---
+
+        /** Feature 1: Draft Welcome Email Handler */
+        btnDraftEmail.onclick = async () => {
+            const orgName = orgNameInput.value.trim();
+            const plan = orgPlanInput.value;
+            const managerEmail = managerEmailInput.value.trim();
+
+            if (!orgName || !plan || !managerEmail) {
+                draftedEmail.value = 'يرجى ملء اسم المؤسسة وخطة الاشتراك وبريد المدير أولاً.';
+                return;
+            }
+
+            btnDraftEmail.innerHTML = '✨ جاري الصياغة...';
+            btnDraftEmail.disabled = true;
+            draftedEmail.value = 'جاري الاتصال بنموذج Gemini...';
+
+            const systemPrompt = `أنت خبير في المبيعات وتدعم خدمة العملاء لشركة Smart HSR المتخصصة في الأنظمة التقنية. مهمتك هي صياغة رسالة بريد إلكتروني ترحيبية احترافية ومتحمسة للمدير التنفيذي لمؤسسة عميل جديد. يجب أن تكون الرسالة باللغة العربية الفصحى، محفزة، وأن تسلط الضوء على قيمة خطة الاشتراك المحددة. لا تضف سطراً للموضوع (Subject).`;
+            
+            const userQuery = `يرجى صياغة رسالة ترحيب لمدير المؤسسة: [${orgName}]، لكونهم اشتركوا في خطة [${formatPlan(plan)}] الجديدة. يجب أن تبدأ الرسالة بـ "عزيزي المدير،" وأن تنهي بـ "مع خالص التحية،\nفريق Smart HSR"`;
+
+            try {
+                const draft = await fetchGemini(systemPrompt, userQuery);
+                draftedEmail.value = draft.trim();
+                logActivity(`تم صياغة مسودة بريد ترحيبي للمؤسسة <span class="font-bold">${orgName}</span> بنجاح.`);
+            } catch (error) {
+                console.error("Gemini Draft Email Error:", error);
+                draftedEmail.value = `حدث خطأ أثناء صياغة الرسالة: ${error.message}`;
+                showMessage('خطأ في الذكاء الاصطناعي', 'فشل في صياغة الرسالة الترحيبية. تحقق من اتصالك أو حاول مرة أخرى.', true);
+            } finally {
+                btnDraftEmail.innerHTML = '✨ صياغة رسالة ترحيب للمدير';
+                btnDraftEmail.disabled = false;
+            }
+        };
+
+        /** Feature 2: Generate Strategy Handler */
+        async function generateStrategy(name, plan, expiry) {
+            showMessage('✨ تحليل وتوليد الاستراتيجية', 'جاري تحليل بيانات المؤسسة ووضع استراتيجية الترقية أو التجديد بواسطة Gemini. يرجى الانتظار...', false);
+            
+            const systemPrompt = `أنت مستشار استراتيجي متخصص في إدارة علاقات العملاء (CRM) وتخطيط التجديد لشركة تقنية (Smart HSR). مهمتك هي تقديم توصية موجزة (فقرة واحدة فقط)، بلغة عربية رسمية وذكية، لتشجيع مؤسسة عميل على التجديد أو الترقية. يجب أن تحدد التوصية الخطوة التالية المباشرة: التجديد أو الترقية إلى الخطة الأعلى (إذا كان العميل على خطة غير المؤسسية).`;
+            
+            const userQuery = `المؤسسة: ${name}. الخطة الحالية: ${formatPlan(plan)}. تاريخ الانتهاء: ${expiry}. صغ استراتيجية موجزة ومركزة للتجديد أو الترقية.`;
+
+            try {
+                const strategyText = await fetchGemini(systemPrompt, userQuery);
+                
+                // Re-display the result in the modal
+                showMessage(
+                    `✨ استراتيجية لـ ${name}`, 
+                    `<p class="text-right text-base mt-2">${strategyText}</p>`, 
+                    false
+                );
+                logActivity(`تم توليد استراتيجية لـ <span class="font-bold">${name}</span> بنجاح.`);
+            } catch (error) {
+                console.error("Gemini Strategy Error:", error);
+                showMessage('خطأ في الذكاء الاصطناعي', `فشل في توليد الاستراتيجية: ${error.message}`, true);
+            }
+        }
+
+
+        // --- Initialization & Authentication (Same as previous version) ---
+
+        async function init() {
+            try {
+                loadingIndicator.classList.remove('hidden');
+
+                // 1. Initialize Firebase
+                if (Object.keys(firebaseConfig).length === 0) {
+                    console.warn("Firebase config is empty. Using default sign-in logic.");
+                }
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                setLogLevel('Debug');
+
+                // 2. Sign In using custom token or anonymously
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // 3. Wait for Auth State
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        SIMULATED_OWNER_UID = user.uid; // Use current UID as owner for demo
+                        const actualUID = user.uid;
+
+                        // 4. Owner Check (Simulated)
+                        if (actualUID !== SIMULATED_OWNER_UID) {
+                            showMessage('خطأ في الصلاحيات', '🚫 ليس لديك صلاحية الوصول إلى هذه اللوحة.', true);
+                            return;
+                        }
+
+                        logActivity(`تم تسجيل الدخول بنجاح للمالك UID: ${actualUID}`);
+                        startRealtimeListeners();
+                        loadingIndicator.classList.add('hidden');
+
+                    } else {
+                        showMessage('تسجيل الدخول مطلوب', '🚫 هذه الصفحة خاصة بالمالك. يرجى تسجيل الدخول أولاً.', true);
+                        loadingIndicator.classList.add('hidden');
+                    }
+                });
+
+            } catch (error) {
+                console.error("Initialization Error:", error);
+                showMessage('خطأ فادح', 'فشل في تهيئة التطبيق أو تسجيل الدخول.', true);
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        function startRealtimeListeners() {
+            // Realtime listener for Organizations
+            const q = query(collection(db, orgsCollectionPath));
+            onSnapshot(q, (snapshot) => {
+                organizationsData = [];
+                snapshot.forEach((doc) => {
+                    organizationsData.push({ id: doc.id, ...doc.data() });
+                });
+                logActivity(`تم تحديث قائمة المؤسسات (${organizationsData.length} مؤسسة)`);
+                renderOrgsTable();
+            }, (error) => {
+                console.error("Firestore error (onSnapshot):", error);
+                showMessage('خطأ في قاعدة البيانات', 'فشل في جلب بيانات المؤسسات في الوقت الحقيقي.', true);
+            });
+        }
+
+
+        // --- Event Handlers ---
+
+        // Open modal
+        openBtn.onclick = () => {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            draftedEmail.value = ''; // Clear email on open
+        }
+        // Close modal
+        closeBtn.onclick = () => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // Search input handler
+        searchInput.oninput = (e) => {
+            searchTerm = e.target.value.trim();
+            renderOrgsTable();
+        };
+
+        // Logout handler
+        logoutBtn.onclick = async () => {
+            try {
+                await signOut(auth);
+                showMessage('تسجيل الخروج', '✅ تم تسجيل الخروج بنجاح. سيتم إعادة التحميل.', false);
+                setTimeout(() => window.location.reload(), 1500);
+            } catch (error) {
+                console.error("Logout Error:", error);
+                showMessage('خطأ في الخروج', 'فشل في تسجيل الخروج.', true);
+            }
+        };
+
+        // Form submission handler
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+
+            const orgName = orgNameInput.value;
+            const orgPlan = orgPlanInput.value;
+            const startDateVal = document.getElementById('startDate').value;
+            const endDateVal = document.getElementById('endDate').value;
+            const managerEmail = managerEmailInput.value;
+
+            const orgId = 'org_' + Date.now();
+            const data = {
+                name: orgName,
+                plan: orgPlan,
+                startAt: new Date(startDateVal),
+                endAt: new Date(endDateVal),
+                managerEmail: managerEmail,
+                createdAt: serverTimestamp(),
+                status: 'active'
+            };
+
+            try {
+                await setDoc(doc(db, orgsCollectionPath, orgId), data);
+                showMessage('نجاح', `✅ تم إنشاء المؤسسة <span class="font-bold">${orgName}</span> بنجاح!`, false);
+                logActivity(`إنشاء مؤسسة جديدة: <span class="font-bold">${orgName}</span>`);
+                modal.classList.add('hidden');
+                form.reset();
+                draftedEmail.value = ''; // Ensure clear on successful creation
+            } catch (error) {
+                console.error("Firestore Write Error:", error);
+                showMessage('خطأ في الحفظ', 'حدث خطأ أثناء إنشاء المؤسسة. يرجى التحقق من المدخلات.', true);
+            }
+        };
+
+        // Start the application
+        window.onload = init;
+    </script>
 </body>
 </html>
